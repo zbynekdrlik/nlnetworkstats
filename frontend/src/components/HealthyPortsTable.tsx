@@ -37,7 +37,7 @@ export function HealthyPortsTable({ ports, title }: HealthyPortsTableProps) {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">{title}</h2>
         <p className="text-gray-500 text-center py-4">
-          No healthy ports with traffic
+          No active ports
         </p>
       </div>
     );
@@ -74,6 +74,12 @@ export function HealthyPortsTable({ ports, title }: HealthyPortsTableProps) {
                 TX
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Drops
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Errors
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Pause
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -88,8 +94,11 @@ export function HealthyPortsTable({ ports, title }: HealthyPortsTableProps) {
             {ports.map((port, idx) => {
               // Check if this is first port of a new switch
               const isFirstOfSwitch = idx === 0 || ports[idx - 1].switch_name !== port.switch_name;
+              const rowClass = port.has_issues
+                ? (isFirstOfSwitch ? 'border-t-2 border-gray-300 bg-yellow-50' : 'bg-yellow-50')
+                : (isFirstOfSwitch ? 'border-t-2 border-gray-300' : '');
               return (
-                <tr key={`${port.switch_name}-${port.port_name}`} className={isFirstOfSwitch ? 'border-t-2 border-gray-300' : ''}>
+                <tr key={`${port.switch_name}-${port.port_name}`} className={rowClass}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                     {isFirstOfSwitch ? port.switch_name : ''}
                   </td>
@@ -114,6 +123,16 @@ export function HealthyPortsTable({ ports, title }: HealthyPortsTableProps) {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
                     {formatBytes(port.tx_bytes)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                    <span className={port.rx_dropped + port.tx_dropped > 0 ? 'text-orange-600' : 'text-gray-500'}>
+                      {formatNumber(port.rx_dropped + port.tx_dropped)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                    <span className={port.rx_errors + port.tx_errors > 0 ? 'text-red-600' : 'text-gray-500'}>
+                      {formatNumber(port.rx_errors + port.tx_errors)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                     <span className={port.rx_pause + port.tx_pause > 0 ? 'text-yellow-600' : 'text-gray-500'}>

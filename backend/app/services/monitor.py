@@ -53,6 +53,7 @@ class NetworkMonitor:
         self._last_update: datetime | None = None
         # State tracking for webhooks
         self._previous_mismatched_ips: set[str] = set()
+        self._previous_online_ips: set[str] = set()
         # Track port error history: port_key -> deque of last 3 total error counts
         self._port_error_history: dict[str, deque] = {}
         # Track which ports have already triggered (to avoid repeat notifications)
@@ -116,6 +117,7 @@ class NetworkMonitor:
         self._last_update = datetime.now()
 
         # Check for state changes and send webhooks
+        self._check_offline_changes()
         self._check_mismatched_changes()
         self._check_port_error_trends()
 
@@ -411,10 +413,10 @@ class NetworkMonitor:
         return [port for port in self._port_errors if port.has_issues]
 
     def get_healthy_ports(self) -> list[PortErrors]:
-        """Get ports without errors, sorted by switch then by traffic."""
-        healthy = [port for port in self._port_errors if not port.has_issues and port.link_status == "up"]
+        """Get all active ports (link up), sorted by switch then by traffic."""
+        active = [port for port in self._port_errors if port.link_status == "up"]
         # Sort by switch name, then by total traffic (highest first)
-        return sorted(healthy, key=lambda p: (p.switch_name, -(p.rx_bytes + p.tx_bytes)))
+        return sorted(active, key=lambda p: (p.switch_name, -(p.rx_bytes + p.tx_bytes)))
 
     def get_switch_statuses(self) -> list[SwitchStatus]:
         """Get connection status of all switches."""
@@ -439,6 +441,60 @@ class NetworkMonitor:
             switches_total=len(self._switches),
             last_update=self._last_update,
         )
+
+    def _check_offline_changes(self):
+        """Check for devices going offline or coming online and send webhooks."""
+        current_online = set()
+        for device in self._device_statuses.values():
+            if device.online:
+                current_online.add(device.ip)
+
+        # Find devices that went offline
+        went_offline = self._previous_online_ips - current_online
+        for ip in went_offline:
+            device = self._device_statuses.get(ip)
+            if device:
+                logger.warning(f"Device {device.name} went offline")
+                send_webhook_sync("device_offline", {
+                    "action": "device_offline",
+                    "device": {
+                        "name": device.name,
+                        "ip": device.ip,
+                        "mac": device.mac,
+                        "expected_speed": device.expected_speed,
+                        "actual_speed": device.actual_speed,
+                        "switch_name": device.switch_name,
+                        "port_name": device.port_name,
+                        "online": device.online,
+                        "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                    },
+                    "message": f"Device went offline: {device.name} ({device.ip})",
+                })
+
+        # Find devices that came back online
+        came_online = current_online - self._previous_online_ips
+        for ip in came_online:
+            device = self._device_statuses.get(ip)
+            if device and self._previous_online_ips:  # Only notify if we had previous state
+                logger.info(f"Device {device.name} came back online")
+                send_webhook_sync("device_online", {
+                    "action": "device_online",
+                    "device": {
+                        "name": device.name,
+                        "ip": device.ip,
+                        "mac": device.mac,
+                        "expected_speed": device.expected_speed,
+                        "actual_speed": device.actual_speed,
+                        "switch_name": device.switch_name,
+                        "port_name": device.port_name,
+                        "online": device.online,
+                        "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                    },
+                    "message": f"Device came back online: {device.name} ({device.ip})",
+                })
+
+        # Update previous state
+        self._previous_online_ips = current_online
 
     def _check_mismatched_changes(self):
         """Check for devices entering or leaving the mismatched state and send webhooks."""
