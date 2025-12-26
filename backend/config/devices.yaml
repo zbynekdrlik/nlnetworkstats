@@ -1,0 +1,15 @@
+# Example device configuration
+# Add your devices here with their expected link speeds
+devices:
+  # Example entries - replace with your actual devices
+  # - name: "Server-01"
+  #   ip: "10.77.8.100"
+  #   expected_speed: "1Gbps"
+  #
+  # - name: "Workstation-05"
+  #   ip: "10.77.9.50"
+  #   expected_speed: "1Gbps"
+  #
+  # - name: "IoT-Device-01"
+  #   ip: "10.77.9.200"
+  #   expected_speed: "100Mbps"

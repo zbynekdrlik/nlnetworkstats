@@ -1,0 +1,30 @@
+switches:
+  - name: switch-1
+    host: 10.77.8.1
+    username: newlevel
+    password: newlevel
+    port: 8728
+
+  - name: switch-2
+    host: 10.77.8.2
+    username: newlevel
+    password: newlevel
+    port: 8728
+
+  - name: switch-3
+    host: 10.77.9.2
+    username: newlevel
+    password: newlevel
+    port: 8728
+
+  - name: switch-4
+    host: 10.77.9.3
+    username: newlevel
+    password: newlevel
+    port: 8728
+
+  - name: switch-5
+    host: 10.77.9.4
+    username: newlevel
+    password: newlevel
+    port: 8728
