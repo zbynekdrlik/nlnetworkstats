@@ -217,6 +217,27 @@ class MikroTikClient:
 
         return self.config.name
 
+    def get_dhcp_leases(self) -> dict[str, str]:
+        """Get DHCP leases (IP to MAC mapping).
+
+        Returns a dict mapping IP -> MAC address for all DHCP leases.
+        This provides IP->MAC mappings even for devices not in ARP table.
+        """
+        leases: dict[str, str] = {}
+        if not self._api:
+            return leases
+
+        try:
+            for lease in self._api.path("ip/dhcp-server/lease"):
+                ip = lease.get("address", "")
+                mac = lease.get("mac-address", "").upper()
+                if ip and mac:
+                    leases[ip] = mac
+        except Exception as e:
+            logger.debug(f"Could not get DHCP leases (might not be a DHCP server): {e}")
+
+        return leases
+
     def get_uplink_ports(self) -> dict[str, str]:
         """Get ports that connect to other switches (uplinks) using neighbor discovery.
 
@@ -241,11 +262,25 @@ class MikroTikClient:
 
         return uplinks
 
+    def ping_to_populate_arp(self, ip_addresses: list[str]) -> None:
+        """Ping IP addresses to populate ARP table."""
+        if not self._api:
+            return
+
+        for ip in ip_addresses:
+            try:
+                # Send a single ping to populate ARP
+                ping_path = self._api.path("ping")
+                list(ping_path(address=ip, count="1"))
+            except Exception:
+                pass  # Ignore ping failures
+
     def get_all_data(self) -> dict[str, Any]:
         """Get all relevant data from the switch."""
         return {
             "identity": self.get_identity(),
             "arp": self.get_arp_table(),
+            "dhcp_leases": self.get_dhcp_leases(),
             "bridge_hosts": self.get_bridge_hosts(),
             "interfaces": self.get_interfaces(),
             "uplink_ports": self.get_uplink_ports(),

@@ -96,7 +96,16 @@ class NetworkMonitor:
 
         # First pass: collect all IP->MAC mappings from all switches
         all_mac_to_ip: dict[str, str] = {}
+        all_ip_to_mac: dict[str, str] = {}  # Reverse mapping for device lookup
         switch_data: list[tuple[SwitchConfig, dict]] = []
+
+        # Pre-populate with configured MACs (for static IP devices not in ARP/DHCP)
+        for device in self._devices:
+            if device.mac:
+                mac = device.mac.upper()
+                all_mac_to_ip[mac] = device.ip
+                all_ip_to_mac[device.ip] = mac
+                logger.debug(f"Using configured MAC for {device.name}: {mac}")
 
         for switch_config in self._switches:
             client = MikroTikClient(switch_config)
@@ -104,9 +113,17 @@ class NetworkMonitor:
                 try:
                     data = client.get_all_data()
                     switch_data.append((switch_config, data))
-                    # Collect ARP entries
+                    # Collect ARP entries (overrides configured MACs if present)
                     for arp_entry in data["arp"]:
                         all_mac_to_ip[arp_entry.mac] = arp_entry.ip
+                        all_ip_to_mac[arp_entry.ip] = arp_entry.mac
+                    # Collect DHCP leases (additional IP->MAC source)
+                    dhcp_leases = data.get("dhcp_leases", {})
+                    for ip, mac in dhcp_leases.items():
+                        if mac not in all_mac_to_ip:  # Don't overwrite ARP
+                            all_mac_to_ip[mac] = ip
+                        if ip not in all_ip_to_mac:  # Don't overwrite ARP
+                            all_ip_to_mac[ip] = mac
                 finally:
                     client.disconnect()
 
@@ -380,11 +397,11 @@ class NetworkMonitor:
         return list(self._device_statuses.values())
 
     def get_mismatched_devices(self) -> list[DeviceStatus]:
-        """Get devices with speed mismatches."""
+        """Get devices with speed mismatches (only if actual speed is detected)."""
         return [
             status
             for status in self._device_statuses.values()
-            if status.online and not status.speed_match
+            if status.online and status.actual_speed and not status.speed_match
         ]
 
     def get_matched_devices(self) -> list[DeviceStatus]:
@@ -426,7 +443,7 @@ class NetworkMonitor:
         """Get overall system status."""
         devices = list(self._device_statuses.values())
         online_devices = [d for d in devices if d.online]
-        mismatched = [d for d in online_devices if not d.speed_match]
+        mismatched = [d for d in online_devices if d.actual_speed and not d.speed_match]
         ports_with_errors = [p for p in self._port_errors if p.has_issues]
         switches_connected = [
             s for s in self._switch_statuses.values() if s.connected

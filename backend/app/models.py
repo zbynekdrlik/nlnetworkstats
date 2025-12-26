@@ -14,6 +14,7 @@ class DeviceConfig(BaseModel):
     name: str
     ip: str
     expected_speed: str
+    mac: str | None = None     # Known MAC address (optional, for static IP devices)
     switch: str | None = None  # Expected switch name (optional)
     port: str | None = None    # Expected port name (optional)
 
