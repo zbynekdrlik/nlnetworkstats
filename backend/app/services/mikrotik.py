@@ -31,6 +31,7 @@ class InterfaceInfo:
     type: str
     running: bool
     speed: str | None
+    full_duplex: bool
     rx_bytes: int
     tx_bytes: int
     rx_dropped: int
@@ -39,6 +40,9 @@ class InterfaceInfo:
     tx_errors: int
     rx_fcs_errors: int
     tx_fcs_errors: int
+    rx_pause: int
+    tx_pause: int
+    rx_fragment: int
 
 
 class MikroTikClient:
@@ -120,11 +124,13 @@ class MikroTikClient:
         """Get interface information including speeds and statistics."""
         interfaces = []
 
-        # Get ethernet interfaces with their speeds
+        # Get ethernet interfaces
         for item in self._query("interface/ethernet"):
             name = item.get("name", "")
-            running = item.get("running", "false") == "true"
-            speed = item.get("speed", None)
+            running = item.get("running", False) is True
+
+            # Get actual link speed and duplex from monitor
+            speed, full_duplex = self._get_interface_monitor(name) if running else (None, True)
 
             # Get statistics
             stats = self._get_interface_stats(name)
@@ -135,6 +141,7 @@ class MikroTikClient:
                     type="ethernet",
                     running=running,
                     speed=speed,
+                    full_duplex=full_duplex,
                     rx_bytes=stats.get("rx-byte", 0),
                     tx_bytes=stats.get("tx-byte", 0),
                     rx_dropped=stats.get("rx-drop", 0),
@@ -143,10 +150,31 @@ class MikroTikClient:
                     tx_errors=stats.get("tx-error", 0),
                     rx_fcs_errors=stats.get("rx-fcs-error", 0),
                     tx_fcs_errors=stats.get("tx-fcs-error", 0),
+                    rx_pause=stats.get("rx-pause", 0),
+                    tx_pause=stats.get("tx-pause", 0),
+                    rx_fragment=stats.get("rx-fragment", 0),
                 )
             )
 
         return interfaces
+
+    def _get_interface_monitor(self, interface_name: str) -> tuple[str | None, bool]:
+        """Get actual link speed and duplex from interface monitor."""
+        if not self._api:
+            return None, True
+
+        try:
+            # Use the monitor command with once=True to get current status
+            monitor_path = self._api.path("interface/ethernet")
+            result = list(monitor_path("monitor", **{"numbers": interface_name, "once": ""}))
+            if result:
+                rate = result[0].get("rate", None)
+                full_duplex = result[0].get("full-duplex", True)
+                return rate, full_duplex
+        except Exception as e:
+            logger.warning(f"Could not get monitor for {interface_name}: {e}")
+
+        return None, True
 
     def _get_interface_stats(self, interface_name: str) -> dict[str, int]:
         """Get statistics for a specific interface."""
@@ -154,29 +182,71 @@ class MikroTikClient:
             return {}
 
         try:
-            stats_path = self._api.path("interface")
-            result = list(stats_path.select(".proplist=name,rx-byte,tx-byte,rx-drop,tx-drop,rx-error,tx-error,rx-fcs-error,tx-fcs-error").where(librouteros.query.Key("name") == interface_name))
-            if result:
-                item = result[0]
-                return {
-                    "rx-byte": int(item.get("rx-byte", 0)),
-                    "tx-byte": int(item.get("tx-byte", 0)),
-                    "rx-drop": int(item.get("rx-drop", 0)),
-                    "tx-drop": int(item.get("tx-drop", 0)),
-                    "rx-error": int(item.get("rx-error", 0)),
-                    "tx-error": int(item.get("tx-error", 0)),
-                    "rx-fcs-error": int(item.get("rx-fcs-error", 0)),
-                    "tx-fcs-error": int(item.get("tx-fcs-error", 0)),
-                }
+            # Get stats from interface/ethernet which has all the detailed counters
+            for item in self._query("interface/ethernet"):
+                if item.get("name") == interface_name:
+                    return {
+                        "rx-byte": int(item.get("rx-bytes", 0)),
+                        "tx-byte": int(item.get("tx-bytes", 0)),
+                        "rx-drop": int(item.get("rx-overflow", 0)),
+                        "tx-drop": int(item.get("tx-drop-packet", 0)),
+                        "rx-error": int(item.get("rx-error-events", 0)),
+                        "tx-error": int(item.get("tx-underrun", 0)),
+                        "rx-fcs-error": int(item.get("rx-fcs-error", 0)),
+                        "tx-fcs-error": int(item.get("tx-collision", 0) + item.get("tx-late-collision", 0)),
+                        "rx-pause": int(item.get("rx-pause", 0)),
+                        "tx-pause": int(item.get("tx-pause", 0)),
+                        "rx-fragment": int(item.get("rx-fragment", 0)),
+                    }
         except Exception as e:
             logger.debug(f"Could not get stats for {interface_name}: {e}")
 
         return {}
 
+    def get_identity(self) -> str:
+        """Get the switch identity (name configured on the device)."""
+        if not self._api:
+            return self.config.name
+
+        try:
+            result = list(self._api.path("system/identity"))
+            if result:
+                return result[0].get("name", self.config.name)
+        except Exception as e:
+            logger.warning(f"Could not get identity: {e}")
+
+        return self.config.name
+
+    def get_uplink_ports(self) -> dict[str, str]:
+        """Get ports that connect to other switches (uplinks) using neighbor discovery.
+
+        Returns a dict mapping port name -> neighbor identity (switch name).
+        """
+        uplinks: dict[str, str] = {}
+        if not self._api:
+            return uplinks
+
+        try:
+            for neighbor in self._api.path("ip/neighbor"):
+                # If neighbor has an identity, it's likely another network device (switch/router)
+                identity = neighbor.get("identity", "")
+                if identity:  # Has identity = network device = uplink port
+                    interface = neighbor.get("interface", "")
+                    # Extract port name (remove ",bridge" suffix)
+                    port = interface.split(",")[0] if "," in interface else interface
+                    if port and port != "bridge":
+                        uplinks[port] = identity
+        except Exception as e:
+            logger.warning(f"Could not get neighbors: {e}")
+
+        return uplinks
+
     def get_all_data(self) -> dict[str, Any]:
         """Get all relevant data from the switch."""
         return {
+            "identity": self.get_identity(),
             "arp": self.get_arp_table(),
             "bridge_hosts": self.get_bridge_hosts(),
             "interfaces": self.get_interfaces(),
+            "uplink_ports": self.get_uplink_ports(),
         }

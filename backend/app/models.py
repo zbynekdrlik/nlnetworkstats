@@ -14,6 +14,8 @@ class DeviceConfig(BaseModel):
     name: str
     ip: str
     expected_speed: str
+    switch: str | None = None  # Expected switch name (optional)
+    port: str | None = None    # Expected port name (optional)
 
 
 class DeviceStatus(BaseModel):
@@ -32,8 +34,10 @@ class DeviceStatus(BaseModel):
 class PortErrors(BaseModel):
     switch_name: str
     port_name: str
+    device_name: str | None = None  # Device connected to this port
     link_status: str = "unknown"
     speed: str | None = None
+    full_duplex: bool = True
     rx_bytes: int = 0
     tx_bytes: int = 0
     rx_dropped: int = 0
@@ -42,6 +46,9 @@ class PortErrors(BaseModel):
     tx_errors: int = 0
     rx_fcs_errors: int = 0
     tx_fcs_errors: int = 0
+    rx_pause: int = 0
+    tx_pause: int = 0
+    rx_fragment: int = 0
     has_issues: bool = False
 
 

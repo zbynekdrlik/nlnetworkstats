@@ -1,6 +1,8 @@
-import { useSystemStatus, useMismatchedDevices, usePortsWithErrors, refreshData } from '../hooks/useApi';
+import { useSystemStatus, useMismatchedDevices, useMatchedDevices, useOfflineDevices, usePortsWithErrors, useHealthyPorts, refreshData } from '../hooks/useApi';
 import { DeviceTable } from './DeviceTable';
 import { ErrorsTable } from './ErrorsTable';
+import { HealthyPortsTable } from './HealthyPortsTable';
+import { OfflineDevicesTable } from './OfflineDevicesTable';
 
 interface StatCardProps {
   title: string;
@@ -36,7 +38,10 @@ function StatCard({ title, value, subtitle, type = 'default' }: StatCardProps) {
 export function Dashboard() {
   const { status, loading: statusLoading, error: statusError } = useSystemStatus();
   const { devices: mismatchedDevices, loading: devicesLoading } = useMismatchedDevices();
+  const { devices: matchedDevices, loading: matchedLoading } = useMatchedDevices();
+  const { devices: offlineDevices, loading: offlineLoading } = useOfflineDevices();
   const { ports: portsWithErrors, loading: portsLoading } = usePortsWithErrors();
+  const { ports: healthyPorts, loading: healthyLoading } = useHealthyPorts();
 
   const handleRefresh = async () => {
     try {
@@ -53,7 +58,7 @@ export function Dashboard() {
     return date.toLocaleTimeString();
   };
 
-  if (statusLoading || devicesLoading || portsLoading) {
+  if (statusLoading || devicesLoading || matchedLoading || offlineLoading || portsLoading || healthyLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-gray-500">Loading...</div>
@@ -129,8 +134,30 @@ export function Dashboard() {
         </div>
 
         {/* Port Errors Table */}
-        <div>
+        <div className="mb-8">
           <ErrorsTable ports={portsWithErrors} title="Ports with Errors" />
+        </div>
+
+        {/* Offline Devices Table */}
+        <div className="mb-8">
+          <OfflineDevicesTable devices={offlineDevices} title="Offline Devices" />
+        </div>
+
+        {/* Matched Devices Table */}
+        <div className="mb-8">
+          <DeviceTable
+            devices={matchedDevices}
+            title="Matched Devices"
+            showAll={true}
+          />
+        </div>
+
+        {/* Healthy Ports Table */}
+        <div>
+          <HealthyPortsTable
+            ports={healthyPorts}
+            title="Healthy Ports (by traffic)"
+          />
         </div>
       </main>
     </div>

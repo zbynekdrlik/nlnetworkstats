@@ -10,3 +10,59 @@ devices:
   - name: "mbc-snv"
     ip: "10.77.9.232"
     expected_speed: "1Gbps"
+
+  - name: "fohabl-snv"
+    ip: "10.77.9.230"
+    expected_speed: "2.5Gbps"
+
+  - name: "iem-snv"
+    ip: "10.77.9.231"
+    expected_speed: "2.5Gbps"
+
+  - name: "iem-dante"
+    ip: "10.77.9.228"
+    expected_speed: "1Gbps"
+
+  - name: "tascam"
+    ip: "10.77.9.229"
+    expected_speed: "1Gbps"
+
+  - name: "songs-snv"
+    ip: "10.77.9.212"
+    expected_speed: "1Gbps"
+
+  - name: "resolume-snv"
+    ip: "10.77.9.201"
+    expected_speed: "2.5Gbps"
+
+  - name: "cam1"
+    ip: "10.77.8.51"
+    expected_speed: "1Gbps"
+
+  - name: "cam2"
+    ip: "10.77.8.52"
+    expected_speed: "1Gbps"
+
+  - name: "cam3"
+    ip: "10.77.8.53"
+    expected_speed: "1Gbps"
+
+  - name: "cam4"
+    ip: "10.77.8.54"
+    expected_speed: "1Gbps"
+
+  - name: "propresenter-snv"
+    ip: "10.77.9.203"
+    expected_speed: "1Gbps"
+
+  - name: "companion-snv"
+    ip: "10.77.9.205"
+    expected_speed: "1Gbps"
+
+  - name: "artnet-snv"
+    ip: "10.77.9.220"
+    expected_speed: "10Mbps"
+
+  - name: "sluchatka-zvukar"
+    ip: "10.77.9.227"
+    expected_speed: "100Mbps"

@@ -85,6 +85,60 @@ export function useMismatchedDevices(refreshInterval: number = 30000) {
   return { devices, loading, error, refresh: fetchDevices };
 }
 
+export function useMatchedDevices(refreshInterval: number = 30000) {
+  const [devices, setDevices] = useState<DeviceStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDevices = useCallback(async () => {
+    try {
+      const response = await axios.get<DeviceStatus[]>(`${API_BASE}/devices/matched`);
+      setDevices(response.data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch matched devices');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDevices();
+    const interval = setInterval(fetchDevices, refreshInterval);
+    return () => clearInterval(interval);
+  }, [fetchDevices, refreshInterval]);
+
+  return { devices, loading, error, refresh: fetchDevices };
+}
+
+export function useOfflineDevices(refreshInterval: number = 30000) {
+  const [devices, setDevices] = useState<DeviceStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDevices = useCallback(async () => {
+    try {
+      const response = await axios.get<DeviceStatus[]>(`${API_BASE}/devices/offline`);
+      setDevices(response.data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch offline devices');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDevices();
+    const interval = setInterval(fetchDevices, refreshInterval);
+    return () => clearInterval(interval);
+  }, [fetchDevices, refreshInterval]);
+
+  return { devices, loading, error, refresh: fetchDevices };
+}
+
 export function usePortsWithErrors(refreshInterval: number = 30000) {
   const [ports, setPorts] = useState<PortErrors[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +151,33 @@ export function usePortsWithErrors(refreshInterval: number = 30000) {
       setError(null);
     } catch (err) {
       setError('Failed to fetch ports with errors');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPorts();
+    const interval = setInterval(fetchPorts, refreshInterval);
+    return () => clearInterval(interval);
+  }, [fetchPorts, refreshInterval]);
+
+  return { ports, loading, error, refresh: fetchPorts };
+}
+
+export function useHealthyPorts(refreshInterval: number = 30000) {
+  const [ports, setPorts] = useState<PortErrors[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPorts = useCallback(async () => {
+    try {
+      const response = await axios.get<PortErrors[]>(`${API_BASE}/ports/healthy`);
+      setPorts(response.data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch healthy ports');
       console.error(err);
     } finally {
       setLoading(false);

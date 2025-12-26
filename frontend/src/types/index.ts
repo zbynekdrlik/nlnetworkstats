@@ -14,8 +14,10 @@ export interface DeviceStatus {
 export interface PortErrors {
   switch_name: string;
   port_name: string;
+  device_name: string | null;
   link_status: string;
   speed: string | null;
+  full_duplex: boolean;
   rx_bytes: number;
   tx_bytes: number;
   rx_dropped: number;
@@ -24,6 +26,9 @@ export interface PortErrors {
   tx_errors: number;
   rx_fcs_errors: number;
   tx_fcs_errors: number;
+  rx_pause: number;
+  tx_pause: number;
+  rx_fragment: number;
   has_issues: boolean;
 }
 

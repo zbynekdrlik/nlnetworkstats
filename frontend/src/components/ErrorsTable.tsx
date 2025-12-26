@@ -38,73 +38,99 @@ export function ErrorsTable({ ports, title }: ErrorsTableProps) {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Switch
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Port
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Device
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Speed
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Duplex
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 RX Drop
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 TX Drop
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 RX Err
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 TX Err
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Pause
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 FCS Err
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Fragment
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {portsWithIssues.map((port) => (
               <tr key={`${port.switch_name}-${port.port_name}`} className="bg-yellow-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                   {port.switch_name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                   {port.port_name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                  {port.device_name || '-'}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                   {port.speed || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                  {port.full_duplex ? (
+                    <span className="text-green-600">Full</span>
+                  ) : (
+                    <span className="text-red-600 font-bold">Half</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                   <span className={port.rx_dropped > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}>
                     {formatNumber(port.rx_dropped)}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                   <span className={port.tx_dropped > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}>
                     {formatNumber(port.tx_dropped)}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                   <span className={port.rx_errors > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}>
                     {formatNumber(port.rx_errors)}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                   <span className={port.tx_errors > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}>
                     {formatNumber(port.tx_errors)}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  <span
-                    className={
-                      port.rx_fcs_errors + port.tx_fcs_errors > 0
-                        ? 'text-red-600 font-semibold'
-                        : 'text-gray-500'
-                    }
-                  >
-                    {formatNumber(port.rx_fcs_errors + port.tx_fcs_errors)}
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                  <span className={port.rx_pause + port.tx_pause > 0 ? 'text-yellow-600 font-semibold' : 'text-gray-500'}>
+                    {formatNumber(port.rx_pause + port.tx_pause)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                  <span className={port.rx_fcs_errors > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+                    {formatNumber(port.rx_fcs_errors)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                  <span className={port.rx_fragment > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+                    {formatNumber(port.rx_fragment)}
                   </span>
                 </td>
               </tr>
