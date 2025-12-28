@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       - NLNS_CONFIG_DIR=/app/config
-      - NLNS_POLL_INTERVAL=30
+      - NLNS_POLL_INTERVAL=10
     volumes:
       - ./backend/config:/app/config:ro
     networks:

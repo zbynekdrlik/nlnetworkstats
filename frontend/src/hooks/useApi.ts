@@ -4,7 +4,7 @@ import { DeviceStatus, PortErrors, SwitchStatus, SystemStatus } from '../types';
 
 const API_BASE = '/api';
 
-export function useSystemStatus(refreshInterval: number = 30000) {
+export function useSystemStatus(refreshInterval: number = 10000) {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function useSystemStatus(refreshInterval: number = 30000) {
   return { status, loading, error, refresh: fetchStatus };
 }
 
-export function useDevices(refreshInterval: number = 30000) {
+export function useDevices(refreshInterval: number = 10000) {
   const [devices, setDevices] = useState<DeviceStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export function useDevices(refreshInterval: number = 30000) {
   return { devices, loading, error, refresh: fetchDevices };
 }
 
-export function useMismatchedDevices(refreshInterval: number = 30000) {
+export function useMismatchedDevices(refreshInterval: number = 10000) {
   const [devices, setDevices] = useState<DeviceStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +85,7 @@ export function useMismatchedDevices(refreshInterval: number = 30000) {
   return { devices, loading, error, refresh: fetchDevices };
 }
 
-export function useMatchedDevices(refreshInterval: number = 30000) {
+export function useMatchedDevices(refreshInterval: number = 10000) {
   const [devices, setDevices] = useState<DeviceStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +112,7 @@ export function useMatchedDevices(refreshInterval: number = 30000) {
   return { devices, loading, error, refresh: fetchDevices };
 }
 
-export function useOfflineDevices(refreshInterval: number = 30000) {
+export function useOfflineDevices(refreshInterval: number = 10000) {
   const [devices, setDevices] = useState<DeviceStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +139,7 @@ export function useOfflineDevices(refreshInterval: number = 30000) {
   return { devices, loading, error, refresh: fetchDevices };
 }
 
-export function usePortsWithErrors(refreshInterval: number = 30000) {
+export function usePortsWithErrors(refreshInterval: number = 10000) {
   const [ports, setPorts] = useState<PortErrors[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,7 +166,7 @@ export function usePortsWithErrors(refreshInterval: number = 30000) {
   return { ports, loading, error, refresh: fetchPorts };
 }
 
-export function useHealthyPorts(refreshInterval: number = 30000) {
+export function useHealthyPorts(refreshInterval: number = 10000) {
   const [ports, setPorts] = useState<PortErrors[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +193,7 @@ export function useHealthyPorts(refreshInterval: number = 30000) {
   return { ports, loading, error, refresh: fetchPorts };
 }
 
-export function useSwitches(refreshInterval: number = 30000) {
+export function useSwitches(refreshInterval: number = 10000) {
   const [switches, setSwitches] = useState<SwitchStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

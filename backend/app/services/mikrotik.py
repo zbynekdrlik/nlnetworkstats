@@ -262,18 +262,28 @@ class MikroTikClient:
 
         return uplinks
 
-    def ping_to_populate_arp(self, ip_addresses: list[str]) -> None:
-        """Ping IP addresses to populate ARP table."""
+    def ping_check(self, ip: str) -> bool:
+        """Ping an IP address and return True if reachable."""
         if not self._api:
-            return
+            return False
 
+        try:
+            results = list(self._api("/ping", address=ip, count="1"))
+            # Check if we got a response
+            for result in results:
+                if result.get("received", 0) > 0:
+                    return True
+            return False
+        except Exception as e:
+            logger.debug(f"Ping to {ip} failed: {e}")
+            return False
+
+    def ping_multiple(self, ip_addresses: list[str]) -> dict[str, bool]:
+        """Ping multiple IP addresses and return reachability status."""
+        results: dict[str, bool] = {}
         for ip in ip_addresses:
-            try:
-                # Send a single ping to populate ARP
-                ping_path = self._api.path("ping")
-                list(ping_path(address=ip, count="1"))
-            except Exception:
-                pass  # Ignore ping failures
+            results[ip] = self.ping_check(ip)
+        return results
 
     def get_all_data(self) -> dict[str, Any]:
         """Get all relevant data from the switch."""

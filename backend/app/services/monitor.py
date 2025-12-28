@@ -56,8 +56,10 @@ class NetworkMonitor:
         self._previous_online_ips: set[str] = set()
         # Track port error history: port_key -> deque of last 3 total error counts
         self._port_error_history: dict[str, deque] = {}
-        # Track which ports have already triggered (to avoid repeat notifications)
-        self._port_error_triggered: set[str] = set()
+        # Track last notification time for each port (30 min cooldown)
+        self._port_error_last_notified: dict[str, datetime] = {}
+        # Cooldown period in minutes before sending another notification for same port
+        self._notification_cooldown_minutes: int = 30
 
     def reload_config(self):
         """Reload configuration from files."""
@@ -66,6 +68,40 @@ class NetworkMonitor:
         logger.info(
             f"Loaded {len(self._switches)} switches and {len(self._devices)} devices"
         )
+
+    def _verify_online_with_ping(self):
+        """Verify online devices are actually reachable via ping.
+
+        This catches devices that appear in stale ARP/bridge tables but are offline.
+        Uses the first switch (router) which can reach all subnets.
+        """
+        if not self._switches:
+            return
+
+        # Get IPs of devices currently marked as online
+        online_ips = [
+            status.ip for status in self._device_statuses.values()
+            if status.online
+        ]
+
+        if not online_ips:
+            return
+
+        # Connect to router (first switch) to ping devices
+        router_config = self._switches[0]
+        client = MikroTikClient(router_config)
+
+        if client.connect():
+            try:
+                ping_results = client.ping_multiple(online_ips)
+                # Mark unreachable devices as offline
+                for ip, reachable in ping_results.items():
+                    if not reachable and ip in self._device_statuses:
+                        status = self._device_statuses[ip]
+                        logger.info(f"Device {status.name} ({ip}) failed ping check - marking offline")
+                        status.online = False
+            finally:
+                client.disconnect()
 
     def collect_data(self):
         """Collect data from all switches and update statuses."""
@@ -130,6 +166,10 @@ class NetworkMonitor:
         # Second pass: find devices on access ports
         for switch_config, data in switch_data:
             self._process_switch_data(switch_config, data, all_mac_to_ip)
+
+        # Third pass: verify online status with ping from router
+        # This catches devices that appear in stale ARP/bridge tables but are actually offline
+        self._verify_online_with_ping()
 
         self._last_update = datetime.now()
 
@@ -594,40 +634,46 @@ class NetworkMonitor:
                 # Check if each reading is higher than the previous
                 is_rising = history[0] < history[1] < history[2]
 
-                if is_rising and port_key not in self._port_error_triggered:
-                    # Trigger webhook - errors rising for 3 consecutive readings
-                    logger.warning(f"Port {port_key} errors rising: {list(history)}")
-                    send_webhook_sync("port_errors_rising", {
-                        "action": "errors_increasing",
-                        "port": {
-                            "switch_name": port.switch_name,
-                            "port_name": port.port_name,
-                            "device_name": port.device_name,
-                            "link_status": port.link_status,
-                            "speed": port.speed,
-                            "full_duplex": port.full_duplex,
-                            "rx_bytes": port.rx_bytes,
-                            "tx_bytes": port.tx_bytes,
-                            "rx_dropped": port.rx_dropped,
-                            "tx_dropped": port.tx_dropped,
-                            "rx_errors": port.rx_errors,
-                            "tx_errors": port.tx_errors,
-                            "rx_fcs_errors": port.rx_fcs_errors,
-                            "tx_fcs_errors": port.tx_fcs_errors,
-                            "rx_pause": port.rx_pause,
-                            "tx_pause": port.tx_pause,
-                            "rx_fragment": port.rx_fragment,
-                            "has_issues": port.has_issues,
-                        },
-                        "error_history": list(history),
-                        "message": f"Port {port.switch_name}/{port.port_name} errors rising for 3 consecutive readings: {list(history)}",
-                    })
-                    # Mark as triggered to avoid repeat notifications
-                    self._port_error_triggered.add(port_key)
+                if is_rising:
+                    # Check cooldown - only notify if enough time has passed
+                    last_notified = self._port_error_last_notified.get(port_key)
+                    now = datetime.now()
+                    cooldown_passed = (
+                        last_notified is None or
+                        (now - last_notified).total_seconds() > self._notification_cooldown_minutes * 60
+                    )
 
-                elif not is_rising and port_key in self._port_error_triggered:
-                    # Reset trigger if errors stopped rising
-                    self._port_error_triggered.remove(port_key)
+                    if cooldown_passed:
+                        # Trigger webhook - errors rising for 3 consecutive readings
+                        logger.warning(f"Port {port_key} errors rising: {list(history)}")
+                        send_webhook_sync("port_errors_rising", {
+                            "action": "errors_increasing",
+                            "port": {
+                                "switch_name": port.switch_name,
+                                "port_name": port.port_name,
+                                "device_name": port.device_name,
+                                "link_status": port.link_status,
+                                "speed": port.speed,
+                                "full_duplex": port.full_duplex,
+                                "rx_bytes": port.rx_bytes,
+                                "tx_bytes": port.tx_bytes,
+                                "rx_dropped": port.rx_dropped,
+                                "tx_dropped": port.tx_dropped,
+                                "rx_errors": port.rx_errors,
+                                "tx_errors": port.tx_errors,
+                                "rx_fcs_errors": port.rx_fcs_errors,
+                                "tx_fcs_errors": port.tx_fcs_errors,
+                                "rx_pause": port.rx_pause,
+                                "tx_pause": port.tx_pause,
+                                "rx_fragment": port.rx_fragment,
+                                "has_issues": port.has_issues,
+                            },
+                            "error_history": list(history),
+                            "cooldown_minutes": self._notification_cooldown_minutes,
+                            "message": f"Port {port.switch_name}/{port.port_name} ({port.device_name or 'unknown device'}) errors rising for 3 consecutive readings: {list(history)}",
+                        })
+                        # Record notification time for cooldown
+                        self._port_error_last_notified[port_key] = now
 
 
 # Global monitor instance

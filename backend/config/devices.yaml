@@ -67,3 +67,19 @@ devices:
   - name: "sluchatka-zvukar"
     ip: "10.77.9.227"
     expected_speed: "100Mbps"
+
+  - name: "sd1"
+    ip: "10.77.9.31"
+    expected_speed: "1Gbps"
+
+  - name: "sd2"
+    ip: "10.77.9.32"
+    expected_speed: "1Gbps"
+
+  - name: "sd3"
+    ip: "10.77.9.33"
+    expected_speed: "1Gbps"
+
+  - name: "sd4"
+    ip: "10.77.9.34"
+    expected_speed: "1Gbps"

@@ -9,7 +9,7 @@ from app.models import DeviceConfig, SwitchConfig
 
 class Settings(BaseSettings):
     config_dir: str = "/app/config"
-    poll_interval: int = 30  # seconds
+    poll_interval: int = 10  # seconds - fast polling for production
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
