@@ -61,6 +61,16 @@ def resolve_hostname(hostname: str) -> str:
         return hostname  # Return original if resolution fails
 
 
+def reverse_dns_lookup(ip: str) -> str | None:
+    """Get hostname for an IP address via reverse DNS. Returns None if lookup fails."""
+    try:
+        hostname, _, _ = socket.gethostbyaddr(ip)
+        # Return short hostname (without domain) for cleaner display
+        return hostname.split('.')[0] if hostname else None
+    except (socket.herror, socket.gaierror):
+        return None
+
+
 class NetworkMonitor:
     """Monitors network devices and compares against expected configuration."""
 
@@ -292,6 +302,17 @@ class NetworkMonitor:
         for status in device_statuses.values():
             if status.switch_name == switch_identity and status.port_name:
                 port_to_device[status.port_name] = status.name
+        # For unknown MACs on access ports, try reverse DNS lookup
+        for mac, port_name in mac_to_port.items():
+            if port_name not in port_to_device and port_name not in uplink_ports:
+                # Unknown device on access port - try to get hostname
+                ip = all_mac_to_ip.get(mac)
+                if ip:
+                    hostname = reverse_dns_lookup(ip)
+                    if hostname:
+                        port_to_device[port_name] = f"{hostname} ({ip})"
+                    else:
+                        port_to_device[port_name] = f"unknown ({ip})"
 
         # Collect port errors - flag any non-zero error counters
         for iface in data["interfaces"]:
