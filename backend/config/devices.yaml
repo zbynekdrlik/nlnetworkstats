@@ -36,19 +36,19 @@ devices:
     expected_speed: "2.5Gbps"
 
   - name: "cam1"
-    ip: "10.77.8.51"
+    ip: "cam1.lan"
     expected_speed: "1Gbps"
 
   - name: "cam2"
-    ip: "10.77.8.52"
+    ip: "cam2.lan"
     expected_speed: "1Gbps"
 
   - name: "cam3"
-    ip: "10.77.8.53"
+    ip: "cam3.lan"
     expected_speed: "1Gbps"
 
   - name: "cam4"
-    ip: "10.77.8.54"
+    ip: "cam4.lan"
     expected_speed: "1Gbps"
 
   - name: "propresenter-snv"

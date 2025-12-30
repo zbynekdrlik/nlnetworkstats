@@ -1,4 +1,5 @@
 import logging
+import socket
 from collections import deque
 from datetime import datetime
 
@@ -41,6 +42,25 @@ def normalize_speed(speed: str | None) -> str | None:
     return speed
 
 
+def resolve_hostname(hostname: str) -> str:
+    """Resolve hostname to IP address. Returns original if already an IP or resolution fails."""
+    # Check if it's already an IP address
+    try:
+        socket.inet_aton(hostname)
+        return hostname  # Already an IP
+    except socket.error:
+        pass
+
+    # Try to resolve DNS name
+    try:
+        ip = socket.gethostbyname(hostname)
+        logger.debug(f"Resolved {hostname} -> {ip}")
+        return ip
+    except socket.gaierror:
+        logger.warning(f"Could not resolve hostname: {hostname}")
+        return hostname  # Return original if resolution fails
+
+
 class NetworkMonitor:
     """Monitors network devices and compares against expected configuration."""
 
@@ -69,7 +89,7 @@ class NetworkMonitor:
             f"Loaded {len(self._switches)} switches and {len(self._devices)} devices"
         )
 
-    def _verify_online_with_ping(self):
+    def _verify_online_with_ping(self, device_statuses: dict[str, DeviceStatus]):
         """Verify online devices are actually reachable via ping.
 
         This catches devices that appear in stale ARP/bridge tables but are offline.
@@ -78,13 +98,14 @@ class NetworkMonitor:
         if not self._switches:
             return
 
-        # Get IPs of devices currently marked as online
-        online_ips = [
-            status.ip for status in self._device_statuses.values()
-            if status.online
-        ]
+        # Get resolved IPs of devices currently marked as online
+        # We need to ping the resolved IP, not the DNS name
+        online_resolved_ips = []
+        for resolved_ip, status in device_statuses.items():
+            if status.online:
+                online_resolved_ips.append(resolved_ip)
 
-        if not online_ips:
+        if not online_resolved_ips:
             return
 
         # Connect to router (first switch) to ping devices
@@ -93,11 +114,11 @@ class NetworkMonitor:
 
         if client.connect():
             try:
-                ping_results = client.ping_multiple(online_ips)
+                ping_results = client.ping_multiple(online_resolved_ips)
                 # Mark unreachable devices as offline
                 for ip, reachable in ping_results.items():
-                    if not reachable and ip in self._device_statuses:
-                        status = self._device_statuses[ip]
+                    if not reachable and ip in device_statuses:
+                        status = device_statuses[ip]
                         logger.info(f"Device {status.name} ({ip}) failed ping check - marking offline")
                         status.online = False
             finally:
@@ -109,26 +130,27 @@ class NetworkMonitor:
             self.reload_config()
 
         # Build lookup for configured switch/port per device
-        self._device_config: dict[str, DeviceConfig] = {}
+        # Resolve DNS names to IPs for matching against ARP table
+        # Use fresh dicts to avoid showing incomplete data during collection
+        device_config: dict[str, DeviceConfig] = {}
+        device_statuses: dict[str, DeviceStatus] = {}
         for device in self._devices:
-            self._device_config[device.ip] = device
-            if device.ip not in self._device_statuses:
-                self._device_statuses[device.ip] = DeviceStatus(
-                    name=device.name,
-                    ip=device.ip,
-                    expected_speed=device.expected_speed,
-                )
+            resolved_ip = resolve_hostname(device.ip)
+            if resolved_ip != device.ip:
+                logger.info(f"Resolved {device.name}: {device.ip} -> {resolved_ip}")
+            device_config[resolved_ip] = device
+            # Preserve last_seen from previous status if exists
+            old_status = self._device_statuses.get(resolved_ip)
+            device_statuses[resolved_ip] = DeviceStatus(
+                name=device.name,
+                ip=device.ip,  # Keep original (DNS name or IP) for display
+                expected_speed=device.expected_speed,
+                last_seen=old_status.last_seen if old_status else None,
+            )
 
-        # Reset online status but keep configured switch/port
-        for status in self._device_statuses.values():
-            status.online = False
-            status.mac = None
-            status.switch_name = None
-            status.port_name = None
-            status.actual_speed = None
-            status.speed_match = False
-
-        self._port_errors = []
+        # Use local variables during collection, swap at the end
+        self._device_config = device_config
+        port_errors: list[PortErrors] = []
 
         # First pass: collect all IP->MAC mappings from all switches
         all_mac_to_ip: dict[str, str] = {}
@@ -165,12 +187,15 @@ class NetworkMonitor:
 
         # Second pass: find devices on access ports
         for switch_config, data in switch_data:
-            self._process_switch_data(switch_config, data, all_mac_to_ip)
+            self._process_switch_data(switch_config, data, all_mac_to_ip, device_statuses, port_errors)
 
         # Third pass: verify online status with ping from router
         # This catches devices that appear in stale ARP/bridge tables but are actually offline
-        self._verify_online_with_ping()
+        self._verify_online_with_ping(device_statuses)
 
+        # Atomically swap the new data (prevents showing incomplete data during collection)
+        self._device_statuses = device_statuses
+        self._port_errors = port_errors
         self._last_update = datetime.now()
 
         # Check for state changes and send webhooks
@@ -183,6 +208,8 @@ class NetworkMonitor:
         switch_config: SwitchConfig,
         data: dict,
         all_mac_to_ip: dict[str, str],
+        device_statuses: dict[str, DeviceStatus],
+        port_errors: list[PortErrors],
     ):
         """Process collected data from a switch."""
         switch_identity = data.get("identity", switch_config.name)
@@ -226,8 +253,8 @@ class NetworkMonitor:
         # Update device statuses - iterate through bridge hosts
         for mac, port_name in mac_to_port.items():
             ip = all_mac_to_ip.get(mac)
-            if ip and ip in self._device_statuses:
-                status = self._device_statuses[ip]
+            if ip and ip in device_statuses:
+                status = device_statuses[ip]
                 device_cfg = self._device_config.get(ip)
                 status.mac = mac
                 status.online = True
@@ -262,7 +289,7 @@ class NetworkMonitor:
             if "basic_switch" not in neighbor_identity.lower():
                 port_to_device[port] = neighbor_identity
         # Then add devices (may override if a device is on an uplink port)
-        for status in self._device_statuses.values():
+        for status in device_statuses.values():
             if status.switch_name == switch_identity and status.port_name:
                 port_to_device[status.port_name] = status.name
 
@@ -280,7 +307,7 @@ class NetworkMonitor:
                 or not iface.full_duplex  # Half duplex is a problem
             )
 
-            self._port_errors.append(
+            port_errors.append(
                 PortErrors(
                     switch_name=switch_identity,
                     port_name=iface.name,
